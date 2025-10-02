@@ -15,52 +15,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (session?.user) {
-          const { data: facultyData, error } = await supabase
-            .from('faculty')
-            .select('*')
-            .eq('email', session.user.email)
-            .maybeSingle();
-
-          if (facultyData && !error) {
-            setFaculty(facultyData);
-          }
-        }
-      } catch (error) {
-        console.error('Session check error:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initializeAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          const { data: facultyData } = await supabase
-            .from('faculty')
-            .select('*')
-            .eq('email', session.user.email)
-            .maybeSingle();
-
-          if (facultyData) {
-            setFaculty(facultyData);
-          }
-        } else if (event === 'SIGNED_OUT') {
-          setFaculty(null);
-        }
-      }
-    );
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    checkSession();
   }, []);
+
+  const checkSession = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session?.user) {
+        const { data: facultyData, error } = await supabase
+          .from('faculty')
+          .select('*')
+          .eq('email', session.user.email)
+          .maybeSingle();
+
+        if (facultyData && !error) {
+          setFaculty(facultyData);
+        }
+      }
+    } catch (error) {
+      console.error('Session check error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
