@@ -1,72 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { LogOut, Calendar, Clock, BookOpen, Settings } from 'lucide-react';
+import React, { useState } from 'react';
+import { LogOut, Calendar, Clock, BookOpen } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { AttendancePage } from './AttendancePage';
 import { AttendanceView } from './AttendanceView';
-import { TimetableEditor } from './TimetableEditor';
-import { supabase } from '../lib/supabase';
 
-type TimetableEntry = {
-  period: number;
-  class: string;
-  subject: string;
-  classId: string;
-  subjectId: string;
-};
+const mockTimetable = [
+  { period: 1, class: 'ECE A', subject: 'Physics', classId: '1', subjectId: 's1' },
+  { period: 2, class: 'CSE B', subject: 'Physics', classId: '2', subjectId: 's1' },
+  { period: 3, class: 'MECH', subject: 'Physics', classId: '3', subjectId: 's1' },
+  { period: 4, class: 'AIDS A', subject: 'Physics', classId: '4', subjectId: 's1' },
+  { period: 5, class: 'ECE B', subject: 'Physics', classId: '5', subjectId: 's1' },
+  { period: 6, class: 'CSE A', subject: 'Physics', classId: '6', subjectId: 's1' },
+  { period: 7, class: 'IT', subject: 'Physics', classId: '7', subjectId: 's1' },
+];
 
-type View = 'dashboard' | 'attendance' | 'view-attendance' | 'timetable-editor';
+type View = 'dashboard' | 'attendance' | 'view-attendance';
 
 export const FacultyDashboard: React.FC = () => {
   const { faculty, logout } = useAuth();
   const [currentView, setCurrentView] = useState<View>('dashboard');
-  const [selectedPeriod, setSelectedPeriod] = useState<TimetableEntry | null>(null);
-  const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [selectedPeriod, setSelectedPeriod] = useState<typeof mockTimetable[0] | null>(null);
 
-  useEffect(() => {
-    const fetchTimetable = async () => {
-      if (!faculty) return;
-
-      try {
-        const { data, error } = await supabase
-          .from('timetable')
-          .select(`
-            period_number,
-            class_id,
-            subject_id,
-            classes (name),
-            subjects (name)
-          `)
-          .eq('faculty_id', faculty.id)
-          .eq('day_of_week', 'Monday')
-          .order('period_number');
-
-        if (error) {
-          console.error('Error fetching timetable:', error);
-          return;
-        }
-
-        if (data) {
-          const formattedTimetable: TimetableEntry[] = data.map((item: any) => ({
-            period: item.period_number,
-            class: item.classes.name,
-            subject: item.subjects.name,
-            classId: item.class_id,
-            subjectId: item.subject_id,
-          }));
-          setTimetable(formattedTimetable);
-        }
-      } catch (error) {
-        console.error('Error:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchTimetable();
-  }, [faculty]);
-
-  const handlePeriodClick = (period: TimetableEntry) => {
+  const handlePeriodClick = (period: typeof mockTimetable[0]) => {
     setSelectedPeriod(period);
     setCurrentView('attendance');
   };
@@ -89,15 +44,6 @@ export const FacultyDashboard: React.FC = () => {
   if (currentView === 'view-attendance') {
     return (
       <AttendanceView
-        faculty={faculty!}
-        onBack={handleBackToDashboard}
-      />
-    );
-  }
-
-  if (currentView === 'timetable-editor') {
-    return (
-      <TimetableEditor
         faculty={faculty!}
         onBack={handleBackToDashboard}
       />
@@ -138,22 +84,13 @@ export const FacultyDashboard: React.FC = () => {
             <Calendar className="w-6 h-6 text-blue-600" />
             <h2 className="text-2xl font-bold text-gray-800">Today's Timetable</h2>
           </div>
-          <div className="flex space-x-3">
-            <button
-              onClick={() => setCurrentView('timetable-editor')}
-              className="flex items-center space-x-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
-            >
-              <Settings className="w-4 h-4" />
-              <span>Edit Timetable</span>
-            </button>
-            <button
-              onClick={() => setCurrentView('view-attendance')}
-              className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>View Attendance Records</span>
-            </button>
-          </div>
+          <button
+            onClick={() => setCurrentView('view-attendance')}
+            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>View Attendance Records</span>
+          </button>
         </div>
 
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
