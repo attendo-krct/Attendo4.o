@@ -15,30 +15,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    checkSession();
-  }, []);
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
 
-  const checkSession = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data: facultyData, error } = await supabase
+            .from('faculty')
+            .select('*')
+            .eq('email', session.user.email)
+            .maybeSingle();
 
-      if (session?.user) {
-        const { data: facultyData, error } = await supabase
-          .from('faculty')
-          .select('*')
-          .eq('email', session.user.email)
-          .maybeSingle();
+          if (facultyData && !error) {
+            setFaculty(facultyData);
+          }
+        }
+      } catch (error) {
+        console.error('Session check error:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-        if (facultyData && !error) {
-          setFaculty(facultyData);
+    initializeAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          const { data: facultyData } = await supabase
+            .from('faculty')
+            .select('*')
+            .eq('email', session.user.email)
+            .maybeSingle();
+
+          if (facultyData) {
+            setFaculty(facultyData);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setFaculty(null);
         }
       }
-    } catch (error) {
-      console.error('Session check error:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
