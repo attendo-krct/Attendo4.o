@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Download, Calendar } from 'lucide-react';
-import { Faculty, supabase } from '../lib/supabase';
+import { Faculty } from '../lib/supabase';
 import { CircularProgress } from './CircularProgress';
-import * as XLSX from 'xlsx';
 
 type AttendanceRecord = {
   studentId: string;
@@ -20,152 +19,93 @@ type AttendanceViewProps = {
   onBack: () => void;
 };
 
-type ClassOption = {
-  id: string;
-  name: string;
+const mockClasses = [
+  { id: '1', name: 'ECE A' },
+  { id: '2', name: 'CSE B' },
+  { id: '3', name: 'MECH' },
+  { id: '4', name: 'AIDS A' },
+  { id: '5', name: 'ECE B' },
+  { id: '6', name: 'CSE A' },
+  { id: '7', name: 'IT' },
+];
+
+const generateMockAttendance = (): AttendanceRecord[] => {
+  const names = [
+    'Aarav Sharma',
+    'Diya Patel',
+    'Arjun Reddy',
+    'Ananya Iyer',
+    'Rohan Kumar',
+    'Priya Singh',
+    'Karthik Menon',
+    'Meera Nair',
+    'Aditya Verma',
+    'Ishita Gupta',
+  ];
+
+  return names.map((name, index) => {
+    const total = 20;
+    const present = Math.floor(Math.random() * 8) + 12;
+    const absent = Math.floor(Math.random() * 4);
+    const onDuty = total - present - absent;
+    const percentage = (present / total) * 100;
+
+    return {
+      studentId: `${index + 1}`,
+      studentName: name,
+      rollNumber: `21A${(index + 1).toString().padStart(2, '0')}`,
+      present,
+      absent,
+      onDuty,
+      total,
+      percentage,
+    };
+  });
 };
 
 export const AttendanceView: React.FC<AttendanceViewProps> = ({ faculty, onBack }) => {
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [attendanceData, setAttendanceData] = useState<AttendanceRecord[]>([]);
   const [workingDays, setWorkingDays] = useState(20);
-  const [classes, setClasses] = useState<ClassOption[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [className, setClassName] = useState('');
 
   useEffect(() => {
-    const fetchClasses = async () => {
-      try {
-        const { data } = await supabase
-          .from('timetable')
-          .select('class_id, classes(id, name)')
-          .eq('faculty_id', faculty.id);
-
-        if (data) {
-          const uniqueClasses = Array.from(
-            new Map(data.map((item: any) => [item.classes.id, item.classes])).values()
-          );
-          setClasses(uniqueClasses as ClassOption[]);
-        }
-      } catch (error) {
-        console.error('Error fetching classes:', error);
-      }
-    };
-
-    fetchClasses();
-  }, [faculty.id]);
-
-  useEffect(() => {
-    const fetchAttendance = async () => {
-      if (!selectedClass) return;
-
-      setIsLoading(true);
-      try {
-        const selectedClassData = classes.find((c) => c.id === selectedClass);
-        setClassName(selectedClassData?.name || '');
-
-        const { data: students } = await supabase
-          .from('students')
-          .select('id, roll_number, name')
-          .eq('class_id', selectedClass)
-          .order('roll_number');
-
-        if (!students) return;
-
-        const attendanceRecords = await Promise.all(
-          students.map(async (student) => {
-            const { data: attendance } = await supabase
-              .from('attendance')
-              .select('status')
-              .eq('student_id', student.id)
-              .eq('faculty_id', faculty.id);
-
-            const present = attendance?.filter((a) => a.status === 'present').length || 0;
-            const absent = attendance?.filter((a) => a.status === 'absent').length || 0;
-            const onDuty = attendance?.filter((a) => a.status === 'on_duty').length || 0;
-            const total = present + absent + onDuty || 1;
-            const percentage = (present / total) * 100;
-
-            return {
-              studentId: student.id,
-              studentName: student.name,
-              rollNumber: student.roll_number,
-              present,
-              absent,
-              onDuty,
-              total,
-              percentage,
-            };
-          })
-        );
-
-        setAttendanceData(attendanceRecords);
-      } catch (error) {
-        console.error('Error fetching attendance:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchAttendance();
-  }, [selectedClass, faculty.id, classes]);
+    if (selectedClass) {
+      setAttendanceData(generateMockAttendance());
+    }
+  }, [selectedClass]);
 
   const downloadClassReport = () => {
-    const wb = XLSX.utils.book_new();
-
-    const headerData = [
-      [''],
-      ['COLLEGE ATTENDANCE MANAGEMENT SYSTEM'],
-      ['Class Attendance Report'],
-      [''],
-      ['Class:', className],
-      ['Faculty:', faculty.name],
-      ['Subject:', faculty.department],
-      ['Date:', new Date().toLocaleDateString()],
-      [''],
+    const className = mockClasses.find((c) => c.id === selectedClass)?.name || 'Class';
+    const csvContent = [
       ['Roll Number', 'Student Name', 'Present', 'Absent', 'On Duty', 'Total', 'Percentage'],
-    ];
+      ...attendanceData.map((record) => [
+        record.rollNumber,
+        record.studentName,
+        record.present,
+        record.absent,
+        record.onDuty,
+        record.total,
+        `${record.percentage.toFixed(2)}%`,
+      ]),
+    ]
+      .map((row) => row.join(','))
+      .join('\n');
 
-    const dataRows = attendanceData.map((record) => [
-      record.rollNumber,
-      record.studentName,
-      record.present,
-      record.absent,
-      record.onDuty,
-      record.total,
-      `${record.percentage.toFixed(2)}%`,
-    ]);
-
-    const ws = XLSX.utils.aoa_to_sheet([...headerData, ...dataRows]);
-
-    ws['!cols'] = [
-      { wch: 15 },
-      { wch: 25 },
-      { wch: 10 },
-      { wch: 10 },
-      { wch: 10 },
-      { wch: 10 },
-      { wch: 12 },
-    ];
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Attendance Report');
-    XLSX.writeFile(wb, `${className}_Attendance_${faculty.name}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${className}_Attendance_${faculty.name}_${new Date().toLocaleDateString()}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const downloadStudentReport = (record: AttendanceRecord) => {
-    const wb = XLSX.utils.book_new();
-
-    const data = [
-      [''],
-      ['COLLEGE ATTENDANCE MANAGEMENT SYSTEM'],
-      ['Student Attendance Report'],
-      [''],
-      ['Student Name:', record.studentName],
-      ['Roll Number:', record.rollNumber],
-      ['Faculty:', faculty.name],
-      ['Subject:', faculty.department],
-      ['Class:', className],
-      ['Date:', new Date().toLocaleDateString()],
+    const csvContent = [
+      ['Student Name', record.studentName],
+      ['Roll Number', record.rollNumber],
+      ['Faculty', faculty.name],
+      ['Subject', faculty.department],
       [''],
       ['Status', 'Count'],
       ['Present', record.present],
@@ -173,13 +113,17 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ faculty, onBack 
       ['On Duty', record.onDuty],
       ['Total Classes', record.total],
       ['Attendance Percentage', `${record.percentage.toFixed(2)}%`],
-    ];
+    ]
+      .map((row) => row.join(','))
+      .join('\n');
 
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    ws['!cols'] = [{ wch: 25 }, { wch: 20 }];
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Student Report');
-    XLSX.writeFile(wb, `${record.rollNumber}_${record.studentName}_Attendance.xlsx`);
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${record.rollNumber}_${record.studentName}_Attendance.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   return (
@@ -214,7 +158,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ faculty, onBack 
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Choose a class...</option>
-                {classes.map((cls) => (
+                {mockClasses.map((cls) => (
                   <option key={cls.id} value={cls.id}>
                     {cls.name}
                   </option>
@@ -251,14 +195,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ faculty, onBack 
           )}
         </div>
 
-        {isLoading && (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading attendance data...</p>
-          </div>
-        )}
-
-        {!isLoading && selectedClass && attendanceData.length > 0 && (
+        {selectedClass && attendanceData.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {attendanceData.map((record) => (
               <div key={record.studentId} className="bg-white rounded-xl shadow-lg p-6">

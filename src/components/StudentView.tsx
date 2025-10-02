@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Download, User } from 'lucide-react';
 import { CircularProgress } from './CircularProgress';
-import * as XLSX from 'xlsx';
 
 type ClassData = {
   id: string;
@@ -81,179 +80,89 @@ export const StudentView: React.FC<StudentViewProps> = ({ classData, onBack }) =
   }, []);
 
   useEffect(() => {
-    const fetchAttendance = async () => {
-      if (!selectedStudent) return;
-
-      try {
-        const { data: attendance } = await supabase
-          .from('attendance')
-          .select(`
-            status,
-            faculty:faculty_id(name),
-            subject:subject_id(name)
-          `)
-          .eq('student_id', selectedStudent.id);
-
-        if (!attendance) return;
-
-        const groupedByFaculty = attendance.reduce((acc: any, curr: any) => {
-          const key = `${curr.faculty.name}_${curr.subject.name}`;
-          if (!acc[key]) {
-            acc[key] = {
-              facultyName: curr.faculty.name,
-              subject: curr.subject.name,
-              present: 0,
-              absent: 0,
-              onDuty: 0,
-            };
-          }
-          if (curr.status === 'present') acc[key].present++;
-          if (curr.status === 'absent') acc[key].absent++;
-          if (curr.status === 'on_duty') acc[key].onDuty++;
-          return acc;
-        }, {});
-
-        const records = Object.values(groupedByFaculty).map((record: any) => {
-          const total = record.present + record.absent + record.onDuty || 1;
-          const percentage = (record.present / total) * 100;
-          return {
-            ...record,
-            total,
-            percentage,
-          };
-        });
-
-        setAttendanceRecords(records);
-      } catch (error) {
-        console.error('Error fetching attendance:', error);
-      }
-    };
-
-    fetchAttendance();
+    if (selectedStudent) {
+      setAttendanceRecords(generateMockFacultyAttendance());
+    }
   }, [selectedStudent]);
-
-  const calculateOverallAttendance = () => {
-    if (attendanceRecords.length === 0) return 0;
-    const totalPresent = attendanceRecords.reduce((sum, r) => sum + r.present, 0);
-    const totalClasses = attendanceRecords.reduce((sum, r) => sum + r.total, 0);
-    return totalClasses > 0 ? (totalPresent / totalClasses) * 100 : 0;
-  };
 
   const downloadStudentReport = () => {
     if (!selectedStudent) return;
 
-    const wb = XLSX.utils.book_new();
-
-    const overallPercentage = calculateOverallAttendance();
-
-    const headerData = [
+    const csvContent = [
+      ['Student Attendance Report'],
       [''],
-      ['COLLEGE ATTENDANCE MANAGEMENT SYSTEM'],
-      ['Student Complete Attendance Report'],
-      [''],
-      ['Student Name:', selectedStudent.name],
-      ['Roll Number:', selectedStudent.rollNumber],
-      ['Class:', classData.name],
-      ['Department:', classData.department],
-      ['Date:', new Date().toLocaleDateString()],
-      ['Overall Attendance:', `${overallPercentage.toFixed(2)}%`],
+      ['Student Name', selectedStudent.name],
+      ['Roll Number', selectedStudent.rollNumber],
+      ['Class', classData.name],
+      ['Department', classData.department],
       [''],
       ['Faculty Name', 'Subject', 'Present', 'Absent', 'On Duty', 'Total', 'Percentage'],
-    ];
+      ...attendanceRecords.map((record) => [
+        record.facultyName,
+        record.subject,
+        record.present,
+        record.absent,
+        record.onDuty,
+        record.total,
+        `${record.percentage.toFixed(2)}%`,
+      ]),
+    ]
+      .map((row) => row.join(','))
+      .join('\n');
 
-    const dataRows = attendanceRecords.map((record) => [
-      record.facultyName,
-      record.subject,
-      record.present,
-      record.absent,
-      record.onDuty,
-      record.total,
-      `${record.percentage.toFixed(2)}%`,
-    ]);
-
-    const ws = XLSX.utils.aoa_to_sheet([...headerData, ...dataRows]);
-    ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 }];
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Student Report');
-    XLSX.writeFile(wb, `${selectedStudent.rollNumber}_${selectedStudent.name}_Complete_Attendance.xlsx`);
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedStudent.rollNumber}_${selectedStudent.name}_Complete_Attendance.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
 
-  const downloadClassReport = async () => {
-    const wb = XLSX.utils.book_new();
-
-    const headerData = [
+  const downloadClassReport = () => {
+    const allStudentsData: string[][] = [
+      ['Class Attendance Report'],
       [''],
-      ['COLLEGE ATTENDANCE MANAGEMENT SYSTEM'],
-      ['Complete Class Attendance Report'],
-      [''],
-      ['Class:', classData.name],
-      ['Department:', classData.department],
-      ['Date:', new Date().toLocaleDateString()],
+      ['Class', classData.name],
+      ['Department', classData.department],
       [''],
     ];
 
-    const allData = [...headerData];
+    students.forEach((student) => {
+      const records = generateMockFacultyAttendance();
+      allStudentsData.push(['']);
+      allStudentsData.push([`Student: ${student.name} (${student.rollNumber})`]);
+      allStudentsData.push([
+        'Faculty Name',
+        'Subject',
+        'Present',
+        'Absent',
+        'On Duty',
+        'Total',
+        'Percentage',
+      ]);
+      records.forEach((record) => {
+        allStudentsData.push([
+          record.facultyName,
+          record.subject,
+          record.present.toString(),
+          record.absent.toString(),
+          record.onDuty.toString(),
+          record.total.toString(),
+          `${record.percentage.toFixed(2)}%`,
+        ]);
+      });
+    });
 
-    for (const student of students) {
-      const { data: attendance } = await supabase
-        .from('attendance')
-        .select(`
-          status,
-          faculty:faculty_id(name),
-          subject:subject_id(name)
-        `)
-        .eq('student_id', student.id);
+    const csvContent = allStudentsData.map((row) => row.join(',')).join('\n');
 
-      if (attendance && attendance.length > 0) {
-        const groupedByFaculty = attendance.reduce((acc: any, curr: any) => {
-          const key = `${curr.faculty.name}_${curr.subject.name}`;
-          if (!acc[key]) {
-            acc[key] = {
-              facultyName: curr.faculty.name,
-              subject: curr.subject.name,
-              present: 0,
-              absent: 0,
-              onDuty: 0,
-            };
-          }
-          if (curr.status === 'present') acc[key].present++;
-          if (curr.status === 'absent') acc[key].absent++;
-          if (curr.status === 'on_duty') acc[key].onDuty++;
-          return acc;
-        }, {});
-
-        const records = Object.values(groupedByFaculty).map((record: any) => {
-          const total = record.present + record.absent + record.onDuty || 1;
-          const percentage = (record.present / total) * 100;
-          return { ...record, total, percentage };
-        });
-
-        const totalPresent = records.reduce((sum: number, r: any) => sum + r.present, 0);
-        const totalClasses = records.reduce((sum: number, r: any) => sum + r.total, 0);
-        const overallPercentage = totalClasses > 0 ? (totalPresent / totalClasses) * 100 : 0;
-
-        allData.push(['']);
-        allData.push([`Student: ${student.name} (${student.rollNumber})`, '', '', '', '', '', `Overall: ${overallPercentage.toFixed(2)}%`]);
-        allData.push(['Faculty Name', 'Subject', 'Present', 'Absent', 'On Duty', 'Total', 'Percentage']);
-        records.forEach((record: any) => {
-          allData.push([
-            record.facultyName,
-            record.subject,
-            record.present,
-            record.absent,
-            record.onDuty,
-            record.total,
-            `${record.percentage.toFixed(2)}%`,
-          ]);
-        });
-      }
-    }
-
-    const ws = XLSX.utils.aoa_to_sheet(allData);
-    ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 15 }];
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Class Report');
-    XLSX.writeFile(wb, `${classData.name}_Complete_Attendance_Report.xlsx`);
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${classData.name}_Complete_Attendance_Report.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   return (
@@ -329,13 +238,6 @@ export const StudentView: React.FC<StudentViewProps> = ({ classData, onBack }) =
                       <Download className="w-4 h-4" />
                       <span>Download</span>
                     </button>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-                  <h4 className="text-xl font-bold text-gray-800 mb-4 text-center">Overall Attendance</h4>
-                  <div className="flex justify-center">
-                    <CircularProgress percentage={calculateOverallAttendance()} size={150} strokeWidth={10} />
                   </div>
                 </div>
 
