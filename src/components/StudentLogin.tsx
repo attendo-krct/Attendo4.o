@@ -1,21 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GraduationCap, ArrowLeft } from 'lucide-react';
 import { StudentView } from './StudentView';
+import { supabase, Class } from '../lib/supabase';
 
-const mockClasses = [
-  { id: '1', name: 'MECH', department: 'Mechanical Engineering' },
-  { id: '2', name: 'CIVIL', department: 'Civil Engineering' },
-  { id: '3', name: 'EEE', department: 'Electrical Engineering' },
-  { id: '4', name: 'ECE A', department: 'Electronics and Communication' },
-  { id: '5', name: 'ECE B', department: 'Electronics and Communication' },
-  { id: '6', name: 'IT', department: 'Information Technology' },
-  { id: '7', name: 'AIDS A', department: 'Artificial Intelligence and Data Science' },
-  { id: '8', name: 'AIDS B', department: 'Artificial Intelligence and Data Science' },
-  { id: '9', name: 'AIML', department: 'Artificial Intelligence and Machine Learning' },
-  { id: '10', name: 'CSE A', department: 'Computer Science Engineering' },
-  { id: '11', name: 'CSE B', department: 'Computer Science Engineering' },
-  { id: '12', name: 'CSE C', department: 'Computer Science Engineering' },
-];
 
 type StudentLoginProps = {
   onBack: () => void;
@@ -24,6 +11,35 @@ type StudentLoginProps = {
 export const StudentLogin: React.FC<StudentLoginProps> = ({ onBack }) => {
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [showStudentView, setShowStudentView] = useState(false);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchClasses();
+  }, []);
+
+  const fetchClasses = async () => {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('classes')
+        .select('*')
+        .order('name');
+
+      if (error) {
+        console.error('Error fetching classes:', error);
+        return;
+      }
+
+      if (data) {
+        setClasses(data);
+      }
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleClassSelect = (classId: string) => {
     setSelectedClass(classId);
@@ -31,7 +47,7 @@ export const StudentLogin: React.FC<StudentLoginProps> = ({ onBack }) => {
   };
 
   if (showStudentView && selectedClass) {
-    const selectedClassData = mockClasses.find((c) => c.id === selectedClass);
+    const selectedClassData = classes.find((c) => c.id === selectedClass);
     return (
       <StudentView
         classData={selectedClassData!}
@@ -63,8 +79,17 @@ export const StudentLogin: React.FC<StudentLoginProps> = ({ onBack }) => {
           <p className="text-gray-600 text-lg">Select your class to view attendance records</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {mockClasses.map((cls) => (
+        {isLoading ? (
+          <div className="text-center py-12">
+            <p className="text-gray-600">Loading classes...</p>
+          </div>
+        ) : classes.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-600">No classes found</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {classes.map((cls) => (
             <button
               key={cls.id}
               onClick={() => handleClassSelect(cls.id)}
@@ -81,8 +106,9 @@ export const StudentLogin: React.FC<StudentLoginProps> = ({ onBack }) => {
                 <span className="text-sm text-green-600 font-medium">View Students</span>
               </div>
             </button>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

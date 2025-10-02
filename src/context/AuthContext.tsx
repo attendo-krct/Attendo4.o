@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Faculty } from '../lib/supabase';
+import { Faculty, supabase } from '../lib/supabase';
 
 type AuthContextType = {
   faculty: Faculty | null;
@@ -24,18 +24,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const facultyData: Faculty = {
-        id: '1',
-        email,
-        name: 'Dr. Rajesh Kumar',
-        designation: 'Assistant Professor',
-        department: 'Department of Physics',
-        password_hash: '',
-        created_at: new Date().toISOString(),
-      };
+      const { data, error } = await supabase
+        .from('faculty')
+        .select('*')
+        .eq('email', email)
+        .maybeSingle();
 
-      setFaculty(facultyData);
-      localStorage.setItem('faculty', JSON.stringify(facultyData));
+      if (error) {
+        console.error('Database error:', error);
+        return false;
+      }
+
+      if (!data) {
+        console.error('Faculty not found');
+        return false;
+      }
+
+      setFaculty(data);
+      localStorage.setItem('faculty', JSON.stringify(data));
       return true;
     } catch (error) {
       console.error('Login error:', error);
