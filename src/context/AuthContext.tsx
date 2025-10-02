@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase, Faculty } from '../lib/supabase';
+import { Faculty } from '../lib/supabase';
 
 type AuthContextType = {
   faculty: Faculty | null;
@@ -15,78 +15,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (session?.user) {
-          const { data: facultyData, error } = await supabase
-            .from('faculty')
-            .select('*')
-            .eq('email', session.user.email)
-            .maybeSingle();
-
-          if (facultyData && !error) {
-            setFaculty(facultyData);
-          }
-        }
-      } catch (error) {
-        console.error('Session check error:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initializeAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          const { data: facultyData } = await supabase
-            .from('faculty')
-            .select('*')
-            .eq('email', session.user.email)
-            .maybeSingle();
-
-          if (facultyData) {
-            setFaculty(facultyData);
-          }
-        } else if (event === 'SIGNED_OUT') {
-          setFaculty(null);
-        }
-      }
-    );
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    const storedFaculty = localStorage.getItem('faculty');
+    if (storedFaculty) {
+      setFaculty(JSON.parse(storedFaculty));
+    }
+    setIsLoading(false);
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      const facultyData: Faculty = {
+        id: '1',
         email,
-        password,
-      });
-
-      if (authError || !authData.user) {
-        console.error('Authentication error:', authError);
-        return false;
-      }
-
-      const { data: facultyData, error: facultyError } = await supabase
-        .from('faculty')
-        .select('*')
-        .eq('email', email)
-        .maybeSingle();
-
-      if (facultyError || !facultyData) {
-        console.error('Faculty fetch error:', facultyError);
-        await supabase.auth.signOut();
-        return false;
-      }
+        name: 'Dr. Rajesh Kumar',
+        designation: 'Assistant Professor',
+        department: 'Department of Physics',
+        password_hash: '',
+        created_at: new Date().toISOString(),
+      };
 
       setFaculty(facultyData);
+      localStorage.setItem('faculty', JSON.stringify(facultyData));
       return true;
     } catch (error) {
       console.error('Login error:', error);
@@ -94,13 +43,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = async () => {
-    try {
-      await supabase.auth.signOut();
-      setFaculty(null);
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+  const logout = () => {
+    setFaculty(null);
+    localStorage.removeItem('faculty');
   };
 
   return (
