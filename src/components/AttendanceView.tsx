@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Download, Calendar } from 'lucide-react';
-import { Faculty, supabase } from '../lib/supabase';
+import { Faculty } from '../lib/supabase';
 import { CircularProgress } from './CircularProgress';
 
 type AttendanceRecord = {
@@ -19,127 +19,63 @@ type AttendanceViewProps = {
   onBack: () => void;
 };
 
-type ClassOption = {
-  id: string;
-  name: string;
+const mockClasses = [
+  { id: '1', name: 'ECE A' },
+  { id: '2', name: 'CSE B' },
+  { id: '3', name: 'MECH' },
+  { id: '4', name: 'AIDS A' },
+  { id: '5', name: 'ECE B' },
+  { id: '6', name: 'CSE A' },
+  { id: '7', name: 'IT' },
+];
+
+const generateMockAttendance = (): AttendanceRecord[] => {
+  const names = [
+    'Aarav Sharma',
+    'Diya Patel',
+    'Arjun Reddy',
+    'Ananya Iyer',
+    'Rohan Kumar',
+    'Priya Singh',
+    'Karthik Menon',
+    'Meera Nair',
+    'Aditya Verma',
+    'Ishita Gupta',
+  ];
+
+  return names.map((name, index) => {
+    const total = 20;
+    const present = Math.floor(Math.random() * 8) + 12;
+    const absent = Math.floor(Math.random() * 4);
+    const onDuty = total - present - absent;
+    const percentage = (present / total) * 100;
+
+    return {
+      studentId: `${index + 1}`,
+      studentName: name,
+      rollNumber: `21A${(index + 1).toString().padStart(2, '0')}`,
+      present,
+      absent,
+      onDuty,
+      total,
+      percentage,
+    };
+  });
 };
 
 export const AttendanceView: React.FC<AttendanceViewProps> = ({ faculty, onBack }) => {
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [attendanceData, setAttendanceData] = useState<AttendanceRecord[]>([]);
-  const [classes, setClasses] = useState<ClassOption[]>([]);
   const [workingDays, setWorkingDays] = useState(20);
-  const [isLoadingClasses, setIsLoadingClasses] = useState(true);
-  const [isLoadingAttendance, setIsLoadingAttendance] = useState(false);
-
-  useEffect(() => {
-    fetchClasses();
-  }, []);
 
   useEffect(() => {
     if (selectedClass) {
-      fetchAttendanceData();
-    } else {
-      setAttendanceData([]);
+      setAttendanceData(generateMockAttendance());
     }
   }, [selectedClass]);
 
-  const fetchClasses = async () => {
-    try {
-      setIsLoadingClasses(true);
-      const { data, error } = await supabase
-        .from('timetable')
-        .select('class_id, classes (id, name)')
-        .eq('faculty_id', faculty.id);
-
-      if (error) {
-        console.error('Error fetching classes:', error);
-        return;
-      }
-
-      if (data) {
-        const uniqueClasses = new Map<string, ClassOption>();
-        data.forEach((item: any) => {
-          if (item.classes) {
-            uniqueClasses.set(item.classes.id, {
-              id: item.classes.id,
-              name: item.classes.name,
-            });
-          }
-        });
-        setClasses(Array.from(uniqueClasses.values()));
-      }
-    } catch (error) {
-      console.error('Error fetching classes:', error);
-    } finally {
-      setIsLoadingClasses(false);
-    }
-  };
-
-  const fetchAttendanceData = async () => {
-    try {
-      setIsLoadingAttendance(true);
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('students')
-        .select('id, roll_number, name')
-        .eq('class_id', selectedClass)
-        .order('roll_number');
-
-      if (studentsError || !studentsData) {
-        console.error('Error fetching students:', studentsError);
-        return;
-      }
-
-      const attendanceRecords: AttendanceRecord[] = [];
-
-      for (const student of studentsData) {
-        const { data: attendanceData, error: attendanceError } = await supabase
-          .from('attendance')
-          .select('status')
-          .eq('student_id', student.id)
-          .eq('faculty_id', faculty.id)
-          .eq('class_id', selectedClass);
-
-        if (attendanceError) {
-          console.error('Error fetching attendance:', attendanceError);
-          continue;
-        }
-
-        let present = 0;
-        let absent = 0;
-        let onDuty = 0;
-
-        attendanceData?.forEach((record) => {
-          if (record.status === 'present') present++;
-          else if (record.status === 'absent') absent++;
-          else if (record.status === 'on_duty') onDuty++;
-        });
-
-        const total = present + absent + onDuty;
-        const percentage = total > 0 ? (present / total) * 100 : 0;
-
-        attendanceRecords.push({
-          studentId: student.id,
-          studentName: student.name,
-          rollNumber: student.roll_number,
-          present,
-          absent,
-          onDuty,
-          total,
-          percentage,
-        });
-      }
-
-      setAttendanceData(attendanceRecords);
-    } catch (error) {
-      console.error('Error fetching attendance data:', error);
-    } finally {
-      setIsLoadingAttendance(false);
-    }
-  };
-
   const downloadClassReport = () => {
-    const className = classes.find((c) => c.id === selectedClass)?.name || 'Class';
+    const className = mockClasses.find((c) => c.id === selectedClass)?.name || 'Class';
     const csvContent = [
       ['Roll Number', 'Student Name', 'Present', 'Absent', 'On Duty', 'Total', 'Percentage'],
       ...attendanceData.map((record) => [
@@ -222,7 +158,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ faculty, onBack 
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Choose a class...</option>
-                {classes.map((cls) => (
+                {mockClasses.map((cls) => (
                   <option key={cls.id} value={cls.id}>
                     {cls.name}
                   </option>
@@ -259,13 +195,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ faculty, onBack 
           )}
         </div>
 
-        {isLoadingAttendance && (
-          <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-            <p className="text-gray-600">Loading attendance data...</p>
-          </div>
-        )}
-
-        {!isLoadingAttendance && selectedClass && attendanceData.length > 0 && (
+        {selectedClass && attendanceData.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {attendanceData.map((record) => (
               <div key={record.studentId} className="bg-white rounded-xl shadow-lg p-6">
@@ -306,7 +236,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ faculty, onBack 
           </div>
         )}
 
-        {!isLoadingAttendance && selectedClass && attendanceData.length === 0 && (
+        {selectedClass && attendanceData.length === 0 && (
           <div className="bg-white rounded-xl shadow-lg p-8 text-center">
             <p className="text-gray-600">No attendance records found for this class.</p>
           </div>

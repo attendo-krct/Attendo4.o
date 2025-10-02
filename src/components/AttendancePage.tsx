@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Check, X, Save, UserCheck } from 'lucide-react';
-import { Faculty, supabase } from '../lib/supabase';
+import { Faculty } from '../lib/supabase';
 
 type Student = {
   id: string;
@@ -21,67 +21,37 @@ type AttendancePageProps = {
   onBack: () => void;
 };
 
+const mockStudents = [
+  { id: '1', roll_number: '21A01', name: 'Aarav Sharma' },
+  { id: '2', roll_number: '21A02', name: 'Diya Patel' },
+  { id: '3', roll_number: '21A03', name: 'Arjun Reddy' },
+  { id: '4', roll_number: '21A04', name: 'Ananya Iyer' },
+  { id: '5', roll_number: '21A05', name: 'Rohan Kumar' },
+  { id: '6', roll_number: '21A06', name: 'Priya Singh' },
+  { id: '7', roll_number: '21A07', name: 'Karthik Menon' },
+  { id: '8', roll_number: '21A08', name: 'Meera Nair' },
+  { id: '9', roll_number: '21A09', name: 'Aditya Verma' },
+  { id: '10', roll_number: '21A10', name: 'Ishita Gupta' },
+  { id: '11', roll_number: '21A11', name: 'Vivek Joshi' },
+  { id: '12', roll_number: '21A12', name: 'Sanya Kapoor' },
+  { id: '13', roll_number: '21A13', name: 'Nikhil Rao' },
+  { id: '14', roll_number: '21A14', name: 'Tanvi Shah' },
+  { id: '15', roll_number: '21A15', name: 'Rahul Desai' },
+];
 
 export const AttendancePage: React.FC<AttendancePageProps> = ({ period, faculty, onBack }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [showAbsentModal, setShowAbsentModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetchStudents();
-  }, [period.classId]);
-
-  const fetchStudents = async () => {
-    try {
-      setIsLoading(true);
-      const today = new Date().toISOString().split('T')[0];
-
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('students')
-        .select('id, roll_number, name')
-        .eq('class_id', period.classId)
-        .order('roll_number');
-
-      if (studentsError) {
-        console.error('Error fetching students:', studentsError);
-        return;
-      }
-
-      if (!studentsData) return;
-
-      const { data: attendanceData, error: attendanceError } = await supabase
-        .from('attendance')
-        .select('student_id, status')
-        .eq('class_id', period.classId)
-        .eq('faculty_id', faculty.id)
-        .eq('subject_id', period.subjectId)
-        .eq('period_number', period.period)
-        .eq('date', today);
-
-      if (attendanceError) {
-        console.error('Error fetching attendance:', attendanceError);
-      }
-
-      const attendanceMap = new Map(
-        attendanceData?.map(a => [a.student_id, a.status]) || []
-      );
-
-      const studentsWithStatus: Student[] = studentsData.map((student) => ({
-        id: student.id,
-        roll_number: student.roll_number,
-        name: student.name,
-        status: (attendanceMap.get(student.id) as 'present' | 'absent' | 'on_duty') || 'present',
-      }));
-
-      setStudents(studentsWithStatus);
-    } catch (error) {
-      console.error('Error fetching students:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    const initialStudents = mockStudents.map((student) => ({
+      ...student,
+      status: 'present' as const,
+    }));
+    setStudents(initialStudents);
+  }, []);
 
   const handleStatusClick = (student: Student) => {
     if (student.status === 'present') {
@@ -110,38 +80,12 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ period, faculty,
 
   const handleSave = async () => {
     setIsSaving(true);
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const attendanceRecords = students.map((student) => ({
-        student_id: student.id,
-        faculty_id: faculty.id,
-        subject_id: period.subjectId,
-        class_id: period.classId,
-        period_number: period.period,
-        date: today,
-        status: student.status,
-      }));
 
-      const { error } = await supabase
-        .from('attendance')
-        .upsert(attendanceRecords, {
-          onConflict: 'student_id,faculty_id,subject_id,class_id,period_number,date',
-        });
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      if (error) {
-        console.error('Error saving attendance:', error);
-        alert('Failed to save attendance. Please try again.');
-        return;
-      }
-
-      alert('Attendance saved successfully!');
-      onBack();
-    } catch (error) {
-      console.error('Error saving attendance:', error);
-      alert('Failed to save attendance. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
+    setIsSaving(false);
+    alert('Attendance saved successfully!');
+    onBack();
   };
 
   const presentCount = students.filter((s) => s.status === 'present').length;
@@ -173,12 +117,6 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ period, faculty,
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {isLoading ? (
-          <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-            <p className="text-gray-600">Loading students...</p>
-          </div>
-        ) : (
-          <>
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -275,8 +213,6 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ period, faculty,
             </table>
           </div>
         </div>
-          </>
-        )}
       </div>
 
       {showAbsentModal && (

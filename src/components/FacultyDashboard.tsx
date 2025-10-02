@@ -1,76 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { LogOut, Calendar, Clock, BookOpen } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { AttendancePage } from './AttendancePage';
 import { AttendanceView } from './AttendanceView';
-import { supabase } from '../lib/supabase';
 
-type TimetableEntry = {
-  period: number;
-  class: string;
-  subject: string;
-  classId: string;
-  subjectId: string;
-};
+const mockTimetable = [
+  { period: 1, class: 'ECE A', subject: 'Physics', classId: '1', subjectId: 's1' },
+  { period: 2, class: 'CSE B', subject: 'Physics', classId: '2', subjectId: 's1' },
+  { period: 3, class: 'MECH', subject: 'Physics', classId: '3', subjectId: 's1' },
+  { period: 4, class: 'AIDS A', subject: 'Physics', classId: '4', subjectId: 's1' },
+  { period: 5, class: 'ECE B', subject: 'Physics', classId: '5', subjectId: 's1' },
+  { period: 6, class: 'CSE A', subject: 'Physics', classId: '6', subjectId: 's1' },
+  { period: 7, class: 'IT', subject: 'Physics', classId: '7', subjectId: 's1' },
+];
 
 type View = 'dashboard' | 'attendance' | 'view-attendance';
 
 export const FacultyDashboard: React.FC = () => {
   const { faculty, logout } = useAuth();
   const [currentView, setCurrentView] = useState<View>('dashboard');
-  const [selectedPeriod, setSelectedPeriod] = useState<TimetableEntry | null>(null);
-  const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [selectedPeriod, setSelectedPeriod] = useState<typeof mockTimetable[0] | null>(null);
 
-  useEffect(() => {
-    if (faculty) {
-      fetchTimetable();
-    }
-  }, [faculty]);
-
-  const fetchTimetable = async () => {
-    try {
-      setIsLoading(true);
-      const currentDay = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-
-      const { data, error } = await supabase
-        .from('timetable')
-        .select(`
-          id,
-          period_number,
-          day_of_week,
-          class_id,
-          subject_id,
-          classes (name),
-          subjects (name)
-        `)
-        .eq('faculty_id', faculty!.id)
-        .eq('day_of_week', currentDay)
-        .order('period_number');
-
-      if (error) {
-        console.error('Error fetching timetable:', error);
-        return;
-      }
-
-      if (data) {
-        const formattedData: TimetableEntry[] = data.map((item: any) => ({
-          period: item.period_number,
-          class: item.classes?.name || 'Unknown',
-          subject: item.subjects?.name || 'Unknown',
-          classId: item.class_id,
-          subjectId: item.subject_id,
-        }));
-        setTimetable(formattedData);
-      }
-    } catch (error) {
-      console.error('Error fetching timetable:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handlePeriodClick = (period: TimetableEntry) => {
+  const handlePeriodClick = (period: typeof mockTimetable[0]) => {
     setSelectedPeriod(period);
     setCurrentView('attendance');
   };
@@ -156,17 +107,8 @@ export const FacultyDashboard: React.FC = () => {
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-            <p className="text-gray-600">Loading timetable...</p>
-          </div>
-        ) : timetable.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-            <p className="text-gray-600">No classes scheduled for today</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {timetable.map((item) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {mockTimetable.map((item) => (
             <button
               key={item.period}
               onClick={() => handlePeriodClick(item)}
@@ -184,9 +126,8 @@ export const FacultyDashboard: React.FC = () => {
                 <span className="text-sm text-blue-600 font-medium">Click to mark attendance</span>
               </div>
             </button>
-            ))}
-          </div>
-        )}
+          ))}
+        </div>
       </div>
     </div>
   );
